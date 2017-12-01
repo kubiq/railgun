@@ -22,63 +22,112 @@ namespace IngameScript
 
         List<IMyMotorStator> rotors = new List<IMyMotorStator>();
         List<IMyShipMergeBlock> mergeBlocks = new List<IMyShipMergeBlock>();
+        List<IMyShipWelder> welderBlocks = new List<IMyShipWelder>();
         string rotorName = "Rotor";
         string mergeBlockName = "Merge";
-        float currentDisplacement = -.4f;
-        const float maxDisplacement = 1.0f;
-        const float minDisplacement = -0.4f;
-        bool launching = false;
+        string welderBlockName = "Welder";
+        float currentDisplacement = -1.0f;
+        const float maxDisplacement = 3.0f;
+        const float minDisplacement = -1.0f;
+        double tick = 0;
 
         Program()
         {
+            Echo("Install program");
             Runtime.UpdateFrequency = UpdateFrequency.None;
+            tick = 0;
+
+
         }
 
         public void Main(string argument)
         {
 
+
             GridTerminalSystem.GetBlocksOfType(rotors, block => block.CustomName.Contains(rotorName));
             GridTerminalSystem.GetBlocksOfType(mergeBlocks, block => block.CustomName.Contains(mergeBlockName));
+            //GridTerminalSystem.GetBlocksOfType(welderBlocks, block => block.CustomName.Contains(welderBlockName));
 
-            if (!launching) {
-                launching = true;
+            Echo("Nasel jsem " + rotors.Count + "motoru");
+            Echo("Nasel jsem " + mergeBlocks.Count + "merge");
+            //Echo("Nasel jsem " + welderBlocks.Count + "welderu");
+
+            Echo("Tick:" + tick.ToString());
+         
+            // start
+            if (tick == 0) {
+                Echo("Starting");
+                Runtime.UpdateFrequency = UpdateFrequency.Update10;
+            }
+
+            tick++;
+
+            if ((tick >= 1) && (tick < 10))  // move it
+            {
+                
+                currentDisplacement += 0.4f;
+                Echo("current displacement var: " + currentDisplacement);
+
+                foreach (IMyMotorStator rotor in rotors)
+                {
+                    Echo("motor displacement: " + rotor.Displacement.ToString());
+                    rotor.Displacement = currentDisplacement;
+                }
+            }
+
+            if (tick == 10)
+            {
                 Echo("Launching");
-                Runtime.UpdateFrequency = UpdateFrequency.Update1;
+                currentDisplacement = minDisplacement;
 
                 foreach (IMyShipMergeBlock merge in mergeBlocks)
                 {
-                    Echo("merge enabled: " + merge.Enabled.ToString());
                     merge.Enabled = false;
                 }
 
-            }
-            
-            // move it
-            currentDisplacement += 0.1f;
-
-            foreach (IMyMotorStator rotor in rotors)
-            {
-                Echo("current displacement: " + rotor.Displacement.ToString());
-                rotor.Displacement = currentDisplacement;
+                foreach (IMyMotorStator rotor in rotors)
+                {
+                    rotor.Displacement = minDisplacement;
+                }
             }
 
             // ended
-            if (currentDisplacement > maxDisplacement)
+            if (tick == 15)
             {
-                Echo("Finished");
-                
-                launching = false;
-                currentDisplacement = minDisplacement;
+                Echo("Reseting merge block");
                 
                 foreach (IMyShipMergeBlock merge in mergeBlocks)
                 {
-                    Echo("merge enabled: " + merge.Enabled.ToString());
                     merge.Enabled = true;
                 }
 
-                Runtime.UpdateFrequency = UpdateFrequency.None;
+                //Echo("Turning on welders");
+                //foreach (IMyShipWelder welder in welderBlocks)
+                //{
+                    //welder.Enabled = true;
+                //}
             }
 
+            if (tick >= 59)
+            {
+                Echo("Turning off welders");
+                foreach (IMyShipWelder welder in welderBlocks)
+                {
+                    welder.Enabled = false;
+                }
+
+                foreach (IMyShipMergeBlock merge in mergeBlocks)
+                {
+                    merge.Enabled = true;
+                }
+            }
+
+            if (tick >= 60)
+            {
+                Echo("Ended program");
+                tick = 0;
+                Runtime.UpdateFrequency = UpdateFrequency.None;
+            }
         }
 
         
