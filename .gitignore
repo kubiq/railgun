@@ -1,6 +1,5 @@
 
 *.dll
 *.xml
-Railgun/Railgun/*
 .vs/
-
+Railgun/Railgun/obj
