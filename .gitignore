@@ -1,0 +1,6 @@
+
+*.dll
+*.xml
+Railgun/Railgun/*
+.vs/
+

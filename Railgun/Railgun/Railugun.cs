@@ -20,117 +20,133 @@ namespace IngameScript
     {
         #endregion
 
-        List<IMyMotorStator> rotors = new List<IMyMotorStator>();
-        List<IMyShipMergeBlock> mergeBlocks = new List<IMyShipMergeBlock>();
-        List<IMyShipWelder> welderBlocks = new List<IMyShipWelder>();
-        string rotorName = "Rotor";
-        string mergeBlockName = "Merge";
-        string welderBlockName = "Welder";
-        float currentDisplacement = -1.0f;
-        const float maxDisplacement = 3.0f;
-        const float minDisplacement = -1.0f;
-        double tick = 0;
+        string rotorTag = "RDSA";
+        string mergeBlockTag = "RDSA";
+
+        List<IMyMotorStator> rdsaRotors = null;
+        IMyShipMergeBlock mergeBlock = null;
+
+        int state = 0;
+
+        bool init = false;
 
         Program()
         {
-            Echo("Install program");
-            Runtime.UpdateFrequency = UpdateFrequency.None;
-            tick = 0;
-
-
+            Runtime.UpdateFrequency = UpdateFrequency.Once;
         }
 
-        public void Main(string argument)
+        void Init()
         {
+            rdsaRotors = new List<IMyMotorStator>();
+            GridTerminalSystem.GetBlocksOfType(rdsaRotors, block => { return block.CustomName.IndexOf(rotorTag, StringComparison.OrdinalIgnoreCase) >= 0; });
 
-
-            GridTerminalSystem.GetBlocksOfType(rotors, block => block.CustomName.Contains(rotorName));
-            GridTerminalSystem.GetBlocksOfType(mergeBlocks, block => block.CustomName.Contains(mergeBlockName));
-            //GridTerminalSystem.GetBlocksOfType(welderBlocks, block => block.CustomName.Contains(welderBlockName));
-
-            Echo("Nasel jsem " + rotors.Count + "motoru");
-            Echo("Nasel jsem " + mergeBlocks.Count + "merge");
-            //Echo("Nasel jsem " + welderBlocks.Count + "welderu");
-
-            Echo("Tick:" + tick.ToString());
-         
-            // start
-            if (tick == 0) {
-                Echo("Starting");
-                Runtime.UpdateFrequency = UpdateFrequency.Update10;
-            }
-
-            tick++;
-
-            if ((tick >= 1) && (tick < 10))  // move it
+            if (rdsaRotors.Count > 0)
             {
-                
-                currentDisplacement += 0.4f;
-                Echo("current displacement var: " + currentDisplacement);
-
-                foreach (IMyMotorStator rotor in rotors)
+                List<IMyShipMergeBlock> mergeBlocks = new List<IMyShipMergeBlock>();
+                GridTerminalSystem.GetBlocksOfType(mergeBlocks, block => { return block.CustomName.IndexOf(mergeBlockTag, StringComparison.OrdinalIgnoreCase) >= 0; });
+                if (mergeBlocks.Count > 0)
                 {
-                    Echo("motor displacement: " + rotor.Displacement.ToString());
-                    rotor.Displacement = currentDisplacement;
+                    mergeBlock = mergeBlocks[0];
+
+                    foreach (IMyMotorStator rotor in rdsaRotors)
+                    {
+                        rotor.SetValueBool("ShareInertiaTensor", true);
+                    }
+
+                    state = 0;
+                    init = true;
                 }
             }
 
-            if (tick == 10)
+            if (init)
             {
-                Echo("Launching");
-                currentDisplacement = minDisplacement;
+                Echo("----- System Online -----");
 
-                foreach (IMyShipMergeBlock merge in mergeBlocks)
+                Echo("\n--[ RDSA Rotors ]--");
+                foreach (IMyMotorStator rotor in rdsaRotors)
                 {
-                    merge.Enabled = false;
+                    Echo(rotor.CustomName);
                 }
 
-                foreach (IMyMotorStator rotor in rotors)
-                {
-                    rotor.Displacement = minDisplacement;
-                }
+                Echo("\n--[ Projectile Holder Merge Block ]--");
+                Echo(mergeBlock.CustomName);
             }
-
-            // ended
-            if (tick == 15)
+            else
             {
-                Echo("Reseting merge block");
-                
-                foreach (IMyShipMergeBlock merge in mergeBlocks)
-                {
-                    merge.Enabled = true;
-                }
-
-                //Echo("Turning on welders");
-                //foreach (IMyShipWelder welder in welderBlocks)
-                //{
-                    //welder.Enabled = true;
-                //}
-            }
-
-            if (tick >= 59)
-            {
-                Echo("Turning off welders");
-                foreach (IMyShipWelder welder in welderBlocks)
-                {
-                    welder.Enabled = false;
-                }
-
-                foreach (IMyShipMergeBlock merge in mergeBlocks)
-                {
-                    merge.Enabled = true;
-                }
-            }
-
-            if (tick >= 60)
-            {
-                Echo("Ended program");
-                tick = 0;
-                Runtime.UpdateFrequency = UpdateFrequency.None;
+                Echo("No RDSA Rotors Or Projectile Holder\nMerge Block Found");
             }
         }
 
-        
+        void Main(string arguments, UpdateType updateSource)
+        {
+            if (arguments.Length > 0 && arguments.Trim().Equals("RESET", StringComparison.OrdinalIgnoreCase))
+            {
+                init = false;
+                Init();
+
+                return;
+            }
+
+            if (!init)
+            {
+                Init();
+
+                if (!init)
+                {
+                    return;
+                }
+
+                if ((updateSource & UpdateType.Once) > 0)
+                {
+                    return;
+                }
+            }
+
+            if (state > 0 && ((updateSource & UpdateType.Update1) == 0))
+            {
+                return;
+            }
+
+            switch (state)
+            {
+                case 0:
+                    Runtime.UpdateFrequency = UpdateFrequency.Update1;
+
+                    foreach (IMyMotorStator rotor in rdsaRotors)
+                    {
+                        rotor.SetValueFloat("Displacement", 0.2f);
+                    }
+                    break;
+                case 1:
+                    foreach (IMyMotorStator rotor in rdsaRotors)
+                    {
+                        rotor.SetValueFloat("Displacement", -0.4f);
+                    }
+                    break;
+                case 2:
+                    foreach (IMyMotorStator rotor in rdsaRotors)
+                    {
+                        rotor.SetValueFloat("Displacement", 0.2f);
+                    }
+                    break;
+                case 3:
+                    foreach (IMyMotorStator rotor in rdsaRotors)
+                    {
+                        rotor.SetValueFloat("Displacement", -0.4f);
+                    }
+                    mergeBlock.ApplyAction("OnOff_Off");
+                    break;
+                case 4:
+                    Runtime.UpdateFrequency = UpdateFrequency.None;
+                    state = -1;
+
+                    mergeBlock.ApplyAction("OnOff_On");
+                    break;
+            }
+            state++;
+        }
+
+
 
         #region post-script
     }
